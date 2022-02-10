@@ -207,6 +207,7 @@ class GcsPublisher(_PublisherBase):
     def publish_function_key(self, key: bytes) -> None:
         """Publishes function key to GCS."""
         req = self._create_function_key_request(key)
+        logger.info(f"dbg publish_function_key req={req}")
         self._gcs_publish(req)
 
     def _gcs_publish(self, req) -> None:
@@ -298,6 +299,10 @@ class _SyncSubscriber(_SubscriberBase):
                     if msg.channel_type != self._channel:
                         logger.warn(f"Ignoring message from unsubscribed channel {msg}")
                         continue
+                    if msg.channel_type == pubsub_pb2.RAY_PYTHON_FUNCTION_CHANNEL:
+                        logger.info(
+                            f"dbg subscriber received import id={self._subscriber_id} result={fut.result()}"
+                        )
                     self._queue.append(msg)
 
     def close(self) -> None:

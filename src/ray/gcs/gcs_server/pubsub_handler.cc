@@ -40,6 +40,9 @@ void InternalPubSubHandler::HandleGcsPublish(const rpc::GcsPublishRequest &reque
     return;
   }
   for (const auto &msg : request.pub_messages()) {
+    if (msg.channel_type() == rpc::ChannelType::RAY_PYTHON_FUNCTION_CHANNEL) {
+      RAY_LOG(INFO) << "dbg HandleGcsPublish " << request.ShortDebugString();
+    }
     gcs_publisher_->GetPublisher()->Publish(msg);
   }
   send_reply_callback(Status::OK(), nullptr, nullptr);
@@ -63,11 +66,18 @@ void InternalPubSubHandler::HandleGcsSubscriberPoll(
   auto pubsub_reply_ptr = pubsub_reply.get();
   gcs_publisher_->GetPublisher()->ConnectToSubscriber(
       subscriber_id, pubsub_reply_ptr,
-      [reply, reply_cb = std::move(send_reply_callback),
+      [request, reply, reply_cb = std::move(send_reply_callback),
        pubsub_reply = std::move(pubsub_reply)](ray::Status status,
                                                std::function<void()> success_cb,
                                                std::function<void()> failure_cb) {
         reply->mutable_pub_messages()->Swap(pubsub_reply->mutable_pub_messages());
+        for (const auto &msg : reply->pub_messages()) {
+          if (msg.channel_type() == rpc::ChannelType::RAY_PYTHON_FUNCTION_CHANNEL) {
+            RAY_LOG(INFO) << "dbg HandleGcsSubscriberPoll request "
+                          << request.ShortDebugString() << "\nreply "
+                          << reply->ShortDebugString();
+          }
+        }
         reply_cb(std::move(status), std::move(success_cb), std::move(failure_cb));
       });
 }
@@ -93,6 +103,10 @@ void InternalPubSubHandler::HandleGcsSubscriberCommandBatch(
           command.channel_type(), subscriber_id,
           command.key_id().empty() ? std::nullopt : std::make_optional(command.key_id()));
     } else if (command.has_subscribe_message()) {
+      if (command.channel_type() == rpc::ChannelType::RAY_PYTHON_FUNCTION_CHANNEL) {
+        RAY_LOG(INFO) << "dbg HandleGcsSubscriberCommandBatch "
+                      << request.ShortDebugString();
+      }
       gcs_publisher_->GetPublisher()->RegisterSubscription(
           command.channel_type(), subscriber_id,
           command.key_id().empty() ? std::nullopt : std::make_optional(command.key_id()));
